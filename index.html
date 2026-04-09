@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Tracking Elastic String</title>
+    <title>The Serotonin Slingshot</title>
     
-    <!-- Step 2: The Tools (MediaPipe libraries via CDN) -->
+    <!-- MediaPipe Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
@@ -13,28 +13,39 @@
         body {
             margin: 0;
             overflow: hidden;
-            background-color: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background-color: #111;
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
         }
-        /* Mirror the canvas so it acts like a real mirror */
         canvas {
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* Mirror effect */
             width: 100vw;
             height: 100vh;
             object-fit: cover;
         }
-        /* Hide the raw video feed, we will draw it directly on the canvas */
-        video {
-            display: none;
+        video { display: none; }
+        
+        /* Happy floating text overlay */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            text-shadow: 0px 0px 10px #ff00ff, 0px 0px 20px #00ffff;
+            pointer-events: none;
+            z-index: 10;
         }
+        h1 { margin: 0; font-size: 2.5rem; }
+        p { margin: 5px 0 0 0; font-size: 1.2rem; font-weight: bold; color: #ffeb3b; }
     </style>
 </head>
 <body>
 
-    <!-- Step 1 & 4: Camera input and Canvas output -->
+    <div id="ui-layer">
+        <h1>🌈 The Serotonin Slingshot</h1>
+        <p id="instruction">Stretch the bad vibes away...</p>
+    </div>
+
     <video id="input_video"></video>
     <canvas id="output_canvas"></canvas>
 
@@ -42,104 +53,163 @@
         const videoElement = document.getElementById('input_video');
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
+        const instructionText = document.getElementById('instruction');
 
-        // Step 5: Smooth Interaction Physics (Lerping variables)
+        // Smooth Interaction Physics
         let smoothedLeftX = 0, smoothedLeftY = 0;
         let smoothedRightX = 0, smoothedRightY = 0;
 
+        // Advanced: Particle System for the "Happiness Explosion"
+        let particles = [];
+        const happyEmojis = ['😂', '🦄', '🌈', '🍕', '🎉', '🌻', '✨', '💖', '🌮', '🚀'];
+        
+        // State management
+        let isSnapped = false;
+        let snapTimer = 0;
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 40; // Explosive speed X
+                this.vy = (Math.random() - 0.5) * 40; // Explosive speed Y
+                this.emoji = happyEmojis[Math.floor(Math.random() * happyEmojis.length)];
+                this.size = Math.random() * 40 + 30; // Random size
+                this.life = 1.0; // Fades out
+                this.gravity = 1.5;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += this.gravity; // Fall down
+                this.life -= 0.02; // Die over time
+            }
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.font = `${this.size}px Arial`;
+                ctx.fillText(this.emoji, this.x, this.y);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function triggerExplosion(x, y) {
+            instructionText.innerText = "💥 BOOM! HAVE SOME SEROTONIN! 💥";
+            for(let i=0; i<30; i++) {
+                particles.push(new Particle(x, y));
+            }
+            isSnapped = true;
+            setTimeout(() => {
+                isSnapped = false;
+                instructionText.innerText = "Stretch the bad vibes away...";
+            }, 2000); // Band comes back after 2 seconds
+        }
+
         function onResults(results) {
-            // Set canvas dimensions to match video
             canvasElement.width = videoElement.videoWidth;
             canvasElement.height = videoElement.videoHeight;
 
-            // 1. Draw the camera feed so your face is visible
+            // Draw Camera Feed
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-            // 2. Check if hands are detected
+            // Update & Draw Particles (Explosions & Trails)
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw(canvasCtx);
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+
             if (results.multiHandLandmarks && results.multiHandLandmarks.length >= 2) {
-                
-                // Get the index finger tips (Landmark 8) of the first two hands detected
                 const hand1 = results.multiHandLandmarks[0][8];
                 const hand2 = results.multiHandLandmarks[1][8];
 
-                // Convert normalized coordinates (0 to 1) to actual canvas pixels
                 const targetX1 = hand1.x * canvasElement.width;
                 const targetY1 = hand1.y * canvasElement.height;
                 const targetX2 = hand2.x * canvasElement.width;
                 const targetY2 = hand2.y * canvasElement.height;
 
-                // Step 5: Apply simple easing/physics to make movement feel organic
+                // Physics: Smooth follow
                 smoothedLeftX += (targetX1 - smoothedLeftX) * 0.3;
                 smoothedLeftY += (targetY1 - smoothedLeftY) * 0.3;
                 smoothedRightX += (targetX2 - smoothedRightX) * 0.3;
                 smoothedRightY += (targetY2 - smoothedRightY) * 0.3;
 
-                // Calculate distance between fingers to calculate "tension"
+                // Calculate Tension
                 const dx = smoothedRightX - smoothedLeftX;
                 const dy = smoothedRightY - smoothedLeftY;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
-                // Step 3 & 5: Draw the Elastic Band
-                // Tension logic: The further apart, the thinner and redder it gets
-                const maxDistance = 600; // Adjust based on arm span
-                const tension = Math.min(distance / maxDistance, 1);
-                
-                const bandThickness = Math.max(2, 15 - (tension * 10)); // Gets thinner as stretched
-                
-                // Color shifts from Cyan (relaxed) to Neon Pink (stretched)
-                const r = Math.floor(0 + (255 * tension));
-                const g = Math.floor(255 - (200 * tension));
-                const b = 255;
+                // Add magical trail effect to hands
+                if (Math.random() > 0.5) particles.push(new Particle(smoothedLeftX, smoothedLeftY));
+                if (Math.random() > 0.5) particles.push(new Particle(smoothedRightX, smoothedRightY));
+                // Make trail particles smaller and float up
+                particles[particles.length-1].size = 20;
+                particles[particles.length-1].gravity = -0.5; 
 
-                // Glowing aesthetic
-                canvasCtx.shadowBlur = 20;
-                canvasCtx.shadowColor = `rgb(${r}, ${g}, ${b})`;
-                
-                // Draw the line
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(smoothedLeftX, smoothedLeftY);
-                canvasCtx.lineTo(smoothedRightX, smoothedRightY);
-                canvasCtx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
-                canvasCtx.lineWidth = bandThickness;
-                canvasCtx.lineCap = 'round';
-                canvasCtx.stroke();
+                if (!isSnapped) {
+                    // Logic to make faces struggle based on distance
+                    let faceEmoji = '🥰';
+                    let bandThickness = 20;
 
-                // Draw glowing nodes on the fingers
-                canvasCtx.beginPath();
-                canvasCtx.arc(smoothedLeftX, smoothedLeftY, 10, 0, 2 * Math.PI);
-                canvasCtx.arc(smoothedRightX, smoothedRightY, 10, 0, 2 * Math.PI);
-                canvasCtx.fillStyle = 'white';
-                canvasCtx.fill();
+                    if (distance > 600) {
+                        triggerExplosion(smoothedLeftX + dx/2, smoothedLeftY + dy/2);
+                    } else if (distance > 450) {
+                        faceEmoji = '😱';
+                        bandThickness = 5;
+                        instructionText.innerText = "KEEP GOING! ALMOST THERE!";
+                    } else if (distance > 300) {
+                        faceEmoji = '🥵';
+                        bandThickness = 10;
+                    } else if (distance > 150) {
+                        faceEmoji = '😬';
+                        bandThickness = 15;
+                    }
+
+                    // Draw the Rainbow Elastic String
+                    const gradient = canvasCtx.createLinearGradient(smoothedLeftX, smoothedLeftY, smoothedRightX, smoothedRightY);
+                    gradient.addColorStop(0, "red");
+                    gradient.addColorStop(0.2, "orange");
+                    gradient.addColorStop(0.4, "yellow");
+                    gradient.addColorStop(0.6, "green");
+                    gradient.addColorStop(0.8, "blue");
+                    gradient.addColorStop(1, "violet");
+
+                    // Wobbly string effect when under stress
+                    let wobbleX = 0, wobbleY = 0;
+                    if (distance > 300) {
+                        wobbleX = (Math.random() - 0.5) * (distance / 50);
+                        wobbleY = (Math.random() - 0.5) * (distance / 50);
+                    }
+
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(smoothedLeftX, smoothedLeftY);
+                    canvasCtx.lineTo(smoothedRightX + wobbleX, smoothedRightY + wobbleY);
+                    canvasCtx.strokeStyle = gradient;
+                    canvasCtx.lineWidth = bandThickness;
+                    canvasCtx.lineCap = 'round';
+                    canvasCtx.stroke();
+
+                    // Draw the silly faces on the fingers!
+                    canvasCtx.font = "60px Arial";
+                    canvasCtx.textAlign = "center";
+                    canvasCtx.textBaseline = "middle";
+                    canvasCtx.fillText(faceEmoji, smoothedLeftX, smoothedLeftY);
+                    canvasCtx.fillText(faceEmoji, smoothedRightX, smoothedRightY);
+                }
             }
             canvasCtx.restore();
         }
 
-        // Initialize MediaPipe Hands
-        const hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-            }
-        });
-
-        // Set tracking parameters
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1, // 0 is fast, 1 is accurate
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
-        });
-
+        // Initialize Tracker
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
         hands.onResults(onResults);
 
-        // Turn on the webcam
+        // Turn on Webcam
         const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
-            width: 1280,
-            height: 720
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 1280, height: 720
         });
         camera.start();
 
